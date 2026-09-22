@@ -1,0 +1,12 @@
+unit_code,label,dimension,canonical_unit,conversion_note,synonyms
+pct,Percent,share,pct,A share of farmers or of area. Record the denominator in detail.,%;per cent;percent;percentage
+usd_ha_yr,USD per hectare per year,cost_rate,usd_ha_yr,Deflated to the base year set in harmonize.R. Record the study year and the original currency.,US$/ha/yr;USD ha-1 yr-1;dollars per hectare per year
+usd_ha,USD per hectare,cost_total,usd_ha,A one off cost. Do not annualise it here. The carbon model does that.,US$/ha;USD ha-1;dollars per hectare
+ugx_ha_yr,Ugandan shilling per hectare per year,cost_rate,usd_ha_yr,Converted at the study year rate then deflated. Keep the original value and unit.,UGX/ha/yr;Ush/ha/yr
+local_ccy_ha_yr,Local currency per hectare per year,cost_rate,usd_ha_yr,Any national currency. The currency code goes in detail. Converted the same way as UGX.,KES/ha/yr;TZS/ha/yr;NGN/ha/yr;GHS/ha/yr;XOF/ha/yr;ETB/ha/yr
+person_days_ha,Person-days per hectare,labour,person_days_ha,A labour quantity and not a price. Never converted to currency by the pipeline.,man-days/ha;labour days per hectare;person days ha-1
+person_days_ha_yr,Person-days per hectare per year,labour_rate,person_days_ha_yr,As above. Recurrent labour.,man-days/ha/yr;labour days per hectare per year
+usd_household,USD per household,cost_total,usd_household,Kept as its own unit. Not converted to a per hectare figure by the pipeline.,US$/household;dollars per household;USD per farm
+usd_tco2e,USD per tonne CO2 equivalent,cost_rate,usd_tco2e,Used for carbon_share rows. A price is not a cost. Check which the paper means.,US$/tCO2e;dollars per tonne CO2e
+ratio,Ratio,share,ratio,A share expressed as a fraction rather than a percent. Harmonised to pct.,fraction;proportion;share
+other,Other,unknown,,No controlled unit fits. The row is listed for the team and the cell stays empty.,

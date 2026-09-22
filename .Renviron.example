@@ -1,0 +1,25 @@
+# Copy this file to .Renviron in your R home folder, or to the repo root, and
+# fill in the values. .Renviron is ignored by git. Never commit real keys.
+#
+# Find your R home folder with: Sys.getenv("HOME")
+# Reload without restarting R with: readRenviron("~/.Renviron")
+
+# Model keys. Screening and extraction use one of these two.
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+
+# Unpaywall needs an email address on every request. Use your work address.
+UNPAYWALL_EMAIL=
+
+# Optional. OpenAlex gives faster and more reliable service to requests that
+# name a contact address (the polite pool).
+OPENALEX_EMAIL=
+
+# Optional. Override the model each step uses. Defaults are set at the top of
+# each script.
+SCREEN_MODEL=
+EXTRACT_MODEL=
+HARMONIZE_MODEL=
+
+# Optional. Send run outputs somewhere other than outputs/.
+CC4A_OUT_DIR=

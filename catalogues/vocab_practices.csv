@@ -1,0 +1,9 @@
+practice_code,label,definition,synonyms,carbon_relevant,notes
+agroforestry,Agroforestry,Deliberate growing of trees on land also used for crops or livestock,agro-forestry;parkland;alley cropping;shade trees;silvopastoral;FMNR;farmer managed natural regeneration,yes,Covers several sub-practices. Record the sub-practice in detail rather than splitting the code.
+conservation_agriculture,Conservation agriculture,Minimum soil disturbance with permanent soil cover and crop rotation,conservation tillage;minimum tillage;zero tillage;no-till;reduced tillage,yes,A paper reporting only one of the three principles is still coded here. Say which in detail.
+improved_fallows,Improved fallows,Planted fallow of nitrogen fixing species between cropping cycles,planted fallow;fallow enrichment;rotational fallow;sesbania fallow;tephrosia fallow,yes,
+biochar,Biochar,Pyrolysed biomass applied to soil as an amendment,pyrolysis char;charcoal amendment;biochar application,yes,
+cover_crops,Cover crops,Crop grown to cover the soil rather than to be harvested,green manure;living mulch;legume intercrop;cover cropping,yes,Separate from conservation agriculture even though it is one of its principles. Code the paper by what it studies.
+drought_tolerant_varieties,Drought tolerant varieties,Crop varieties bred for yield stability under water stress,drought resistant variety;stress tolerant maize;DTMA;improved variety,no,Adoption rates are common here and costs are rare. Both are in scope.
+water_harvesting,Water harvesting,Capture and concentration of rainfall or runoff for crop use,rainwater harvesting;zai;tassa;half moon;contour bund;stone bund;micro-catchment,no,In situ and ex situ both belong here. Say which in detail.
+other,Other,An adaptation practice not covered by the codes above,,unknown,Never guess. A row coded other is listed for the team in the review sheet so the vocabulary can be extended.
