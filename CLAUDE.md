@@ -17,52 +17,54 @@ Read this before writing anything. If a rule here disagrees with something in
 
 ## 1. What this repo is
 
-An R pipeline that collects the costs and the adoption rates of climate
-adaptation practices in African agriculture, from the published literature,
-and publishes them as an Excel parameter database for a carbon credit
-project. Seven steps, one folder per step under `R/`.
+An R pipeline that harvests the costs and the adoption rates of climate
+adaptation practices in African agriculture out of the published literature,
+and delivers them as an Excel parameter database for a carbon credit project.
+Seven steps, one folder per step under `R/`.
 
-The numbers this pipeline produces go into a financial model. A wrong number
-that looks plausible is worse than no number. Every rule below follows from
-that.
+What comes out of here gets multiplied by hectares and by years inside a
+financial model, far from anyone who could check it against a paper. The
+failure that matters is therefore a wrong number that looks reasonable. Most
+of the rules below exist to make that failure loud.
 
 ## 2. Standing rules
 
-**Deterministic first, model second.** If a pattern, a lookup or a table
-read can decide, no model call is spent. Where a model is needed, batch the
-calls and cache the answers.
+**Spend a lookup before you spend a model call.** If a regular expression, a
+synonym table or a cached decision can answer the question, it should. Where a
+model is genuinely required, batch what you send it and keep what it says.
 
-**Every extracted value carries a page number and is checked against that
-page.** The model returns the paper's own words. Code string matches the
-quote against the cited page. A value that is not found is dropped, not kept.
-Never relax this check to raise the yield.
+**A value without a verified page reference does not enter the data.** The
+model answers in the paper's own words; code then searches the cited page for
+those words. Anything it cannot locate is discarded. Do not weaken this test
+to improve the yield, because yield is not the problem this review has.
 
-**Two sessions, not one.** Reading the paper (step 5) and choosing a
-controlled value (step 6) are separate jobs. Reading is expensive and done
-once. Choosing is cheap and is redone whenever a vocabulary changes, without
-opening a PDF again. Do not move vocabulary lists into the extraction
-prompt.
+**Reading and coding are separate jobs.** Step 5 opens the paper; step 6
+chooses the controlled value. Opening papers is expensive and happens once.
+Choosing is cheap and can be redone every time a vocabulary grows, without
+touching a PDF. So keep vocabulary lists out of the extraction prompt, however
+convenient it looks.
 
-**No analytical rule is hardcoded in a script.** Practices, units, keywords,
-the year window and the geography list live in `catalogues/` and
-`R/00_shared/paths.R`, and are read at run time.
+**Analytical decisions belong in files, not in code.** Practices, units,
+keywords, the year window and the country list are read at run time from
+`catalogues/` and `R/00_shared/paths.R`.
 
-**paths.R is the only file that knows a path.** No script builds a path from
-a literal. If a new file is needed, add it to `paths.R` first.
+**Only `paths.R` knows a path.** No literal paths anywhere else. A new file is
+declared there before anything writes to it.
 
-**The pipeline proposes, the team decides.** A new practice, a new unit or an
-unmatched term goes to `outputs/review/`, never silently into the data. When
-no controlled value fits, the answer is NOT STATED and the cell stays empty.
+**Uncertainty is escalated, not resolved quietly.** An unfamiliar practice, an
+unmatched unit, a term with no home goes to `outputs/review/` for the team.
+Where nothing in the vocabulary fits, the answer is NOT STATED and the cell is
+left empty.
 
-**Nothing is lost.** Duplicates are registered, not deleted. The model's own
-verdict is kept beside the ruled one. A person's override is kept in
-`catalogues/screen_overrides.csv` and wins over the rules.
+**Rejected does not mean deleted.** Merged duplicates keep a register entry,
+the model's own verdict survives beside the audited one, and a person's
+override in `catalogues/screen_overrides.csv` outranks both.
 
-**Every step is resumable.** Append results after each record, never only at
-the end. A run stopped halfway must continue where it left off.
+**Assume every run will be interrupted.** Append after each record rather than
+at the end, and skip what is already done on restart.
 
-**Every model calling step has a `--dry` flag** that plans and prices the run
-without calling anything. Build that flag first, not last.
+**Any step that calls a model needs `--dry` before it needs anything else.**
+It should plan and price the run without spending a cent.
 
 ## 3. Script anatomy
 
@@ -87,26 +89,29 @@ root <- rprojroot::find_root(rprojroot::has_file("CC4A.Rproj"))
 source(file.path(root, "R/00_shared/paths.R"))
 ```
 
-`utils.R` and any other shared file are sourced after those two, the same
-way. The pattern works from RStudio, from `Rscript`, and from a working
-directory anywhere inside the repo, so no script ever calls `setwd()`.
+Anything else shared, `utils.R` included, is sourced after those two in the
+same style. This works identically from RStudio, from `Rscript`, and from any
+working directory inside the clone, which is why no script here calls
+`setwd()`.
 
-A placeholder script carries the real header, the real constants, and the
-real sourcing lines, with the logic left as a numbered TODO and a final
-`stop("not implemented yet")`. A placeholder that runs silently and does
-nothing is worse than one that stops.
+A placeholder script is not an empty file. It carries the real header, the
+real constants and the real sourcing lines, with the logic left as a numbered
+TODO and a closing `stop("not implemented yet")`. A stub that runs quietly and
+produces nothing is the worse kind of lie.
 
 ## 4. Style
 
-- Plain language, in code and in documents. Sentence case. No em dashes.
-- Comments say why, not what. The code already says what.
-- Constants in `SCREAMING_SNAKE_CASE` at the top of the file, under a
-  comment saying what changing them does.
+- Plain language, in code as much as in documents. Sentence case. No em
+  dashes.
+- Comments explain why. The code is already saying what.
+- Constants in `SCREAMING_SNAKE_CASE` at the head of the file, each under a
+  note on what moving it will do.
 - Functions and variables in `snake_case`.
-- Files in `snake_case.R`, prefixed with nothing. The folder carries the
-  step number, the file does not.
-- One job per script. If a script needs two verbs to describe it, split it.
-- Prefer a data frame over a list of lists. Everything here is tabular.
+- Filenames in `snake_case.R`, unprefixed. The folder carries the step number
+  so the file does not have to.
+- One job per script. Two verbs in the description means two scripts.
+- Tabular data wants a data frame, not a list of lists. Almost everything here
+  is tabular.
 - Commits follow the conventional style: `feat:`, `fix:`, `docs:`,
   `refactor:`.
 
@@ -187,14 +192,14 @@ empty pages rather than failing, so check for text before spending a model
 call. Ligatures and non-breaking spaces break exact string matching, so
 normalise whitespace and unicode before verifying a quote.
 
-**Windows paths.** Some publisher filenames are long enough to pass 260
-characters. Files are saved as `<record_id>.pdf` for that reason. Never keep
-the publisher's filename.
+**Windows paths.** Publisher filenames can be long enough to breach the 260
+character limit once they sit inside a nested output folder. That is why
+downloads are renamed `<record_id>.pdf`. Never preserve the original name.
 
-**Model prompt order.** The document text goes first and the per call
-instruction after it, so the shared prefix is cached and the five extraction
-calls for one paper cost little more than one. Putting an instruction before
-the document roughly doubles the bill.
+**Prompt order is a cost decision.** Document text first, per call instruction
+after it. That way the provider caches the expensive half and the several
+extraction calls for one paper cost barely more than one. Slip an instruction
+in ahead of the document and the bill roughly doubles for no benefit.
 
 **Currency.** A cost is comparable only once the currency, the study year
 and the area are all fixed. Record all three as the paper gives them, then

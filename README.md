@@ -1,25 +1,27 @@
 # CC4A: costs and adoption of climate adaptation practices in Africa
 
-This is the code behind the economic parameter review of Carbon Credits 4
-Adaptation (CC4A). The review asks two questions: what does it cost to put a
-climate adaptation practice in place on a hectare of African farmland, and
-what share of farmers take it up? The answers are read out of the published
-literature and published as an Excel parameter database that feeds the
-carbon credit project's financial model.
+Carbon Credits 4 Adaptation (CC4A) needs two numbers for every adaptation
+practice it might finance: what it costs to establish on a hectare of African
+farmland, and what share of farmers actually take it up. This repository is
+the machinery that reads those numbers out of the published literature and
+hands them to the project's financial model as a spreadsheet.
 
-The pipeline queries OpenAlex for candidate studies, removes duplicates,
-decides which ones are in scope, fetches the full text where a free copy
-exists, reads each paper with a language model, checks every extracted value
-against the page it came from, maps the values to controlled vocabularies,
-standardises the units, and exports the result with a quality score against a
-hand checked gold set.
+Seven steps, each one a folder under `R/`, numbered in running order. A
+search against OpenAlex, a duplicate pass, an abstract level scope decision, a
+full text download, an extraction that quotes the paper rather than
+paraphrasing it, a mapping onto controlled vocabularies, and an Excel export
+carrying its own quality score.
 
-Everything is written in R. Each step is one folder under `R/`, numbered in
-the order the work happens.
+Everything is R. Nothing in a script decides anything analytical: the
+practices, the units, the search terms and the scope window are all read from
+files at run time, so widening the review is an edit to a table rather than a
+rewrite.
 
-The numbers this pipeline produces go into a financial model. A wrong number
-that looks plausible is worse than no number, and most of the design follows
-from that.
+A word on why the design is cautious. These numbers end up multiplied by
+hectares and by years inside a financial model, where nobody will be able to
+see which paper a figure came from. A plausible looking wrong number is
+therefore the expensive failure, and most of what follows is arranged to make
+that failure noisy rather than silent.
 
 Contact: Namita Joshi, Alliance Bioversity International and CIAT
 (n.joshi@cgiar.org).
@@ -40,170 +42,163 @@ Contact: Namita Joshi, Alliance Bioversity International and CIAT
 
 ## 1. What the pipeline does
 
-The work runs in seven steps. Each step has its own folder under `R/`.
-
 | Step | Folder | What happens |
 |---|---|---|
-| 1 | `R/01_search` | The keyword list is crossed into queries and sent to the OpenAlex works API. The Africa filter and the year filter are applied server side, so the result set is small before it is downloaded. One row per record, with the query that found it. |
-| 2 | `R/02_dedup` | One row per study. Exact match on the DOI first, then a fuzzy title match for the records with no DOI or a different one. The copies taken out go to a register saying which row was kept and why. |
-| 3 | `R/03_screen` | A model reads the title and the abstract and says whether the study is in scope: a number, a climate adaptation practice, an African country, inside the year window. Code rules then check the verdict. Unsure cases go to a person. |
-| 4 | `R/04_fetch` | The full text of every in scope record, tried through Unpaywall, then the DOI, then the publisher page. Every file is checked before it is kept: it has to be a PDF and it has to hold readable text. |
-| 5 | `R/05_extract` | A model reads the full text and returns the parameter rows in the paper's own words, each with a number, a unit, a page and the sentence it came from. Code then checks every quote against the page it cites. Values that are not found are dropped. |
-| 6 | `R/06_harmonise` | The verified extracts are mapped to the controlled vocabularies and the units are standardised. Rules first, the decision cache second, one batched model call for what is left. |
-| 7 | `R/07_publish` | The Excel parameter database in the schema's column order, a provenance sheet, a review sheet, the cost of the run, and the score against the gold set. |
+| 1 | `R/01_search` | Keyword blocks are crossed into queries and sent to the OpenAlex works API. Africa and the publication window are filtered on the server, so only a plausible result set is ever downloaded. Each row remembers which query found it. |
+| 2 | `R/02_dedup` | The result set collapses to one row per study. DOIs settle most of it; a fuzzy title comparison catches the rest. Rows that lose are not deleted, they are registered with the reason. |
+| 3 | `R/03_screen` | A model reads title and abstract and answers whether the study is worth downloading: does it carry a number, is the subject an adaptation practice, is it set in Africa, is it inside the window. Code then audits the answer and sends the doubtful cases to a person. |
+| 4 | `R/04_fetch` | Full text, chased through Unpaywall, then the DOI, then the publisher. Downloads are inspected before they are trusted, because a login page saved as a PDF is still a PDF. |
+| 5 | `R/05_extract` | A model reads the paper and returns parameter rows in the paper's own words: the number, the unit as written, the page, the sentence. Code then looks for each sentence on the page it was attributed to. Anything it cannot find is discarded. |
+| 6 | `R/06_harmonise` | Verified rows are mapped onto the controlled vocabularies and the units are made comparable. Lookup tables do most of it, a cache does the rest, and one batched model call handles the remainder. |
+| 7 | `R/07_publish` | The Excel parameter database in schema order, a provenance sheet, a sheet of rows worth a second look, the bill for the run, and the score against the gold set. |
 
-The picture of this workflow is `docs/workflow_diagram.md`, to be replaced by
-a drawn figure.
+A diagram of this belongs in `docs/workflow_diagram.md`, which currently holds
+the same seven steps as a sketch.
 
 ## 2. What is in this repo and what is not
 
-The repo holds code and the small reference tables the code reads at run
-time. It does not hold PDFs, run outputs or keys.
+The repository carries scripts and the small tables those scripts read. It
+carries no papers, no run output and no credentials.
 
-| In the repo | Not in the repo |
+| Here | Not here |
 |---|---|
-| `R/` all scripts | The downloaded full texts (`outputs/04_fulltext/pdf/`) |
-| `catalogues/` the vocabularies, the keyword list, the gold set, the decision cache | Run outputs and caches (`outputs/`, ignored by git, regenerated by the scripts) |
-| `docs/protocol.md` the review protocol | The raw search result set (`catalogues/search_raw.csv`, regenerated by step 1) |
-| `CLAUDE.md` and `.claude/` working rules for AI coding sessions | API keys (`.Renviron`, ignored by git) |
+| `R/`, every script | Downloaded full texts, which land in `outputs/04_fulltext/pdf/` |
+| `catalogues/`, the vocabularies, keyword list, gold set and decision cache | Everything under `outputs/`, git ignored and rebuilt by the scripts |
+| `docs/protocol.md`, the review protocol | `catalogues/search_raw.csv`, the raw result set, rebuilt by step 1 |
+| `CLAUDE.md` and `.claude/`, notes for AI coding sessions | API keys, which live in `.Renviron` and are git ignored |
 
-`R/00_shared/paths.R` is the single place that knows the layout. Every script
-finds the repo root from its own location with `rprojroot`, so the repo can
-be cloned anywhere and no script calls `setwd()`.
-
-Outputs can be sent elsewhere, to a shared drive say, by setting
-`CC4A_OUT_DIR` in `.Renviron`.
+Layout is settled in one file, `R/00_shared/paths.R`. Scripts locate the
+repository root from their own position using `rprojroot`, so the clone can
+sit anywhere and no script has to change directory to work. Point
+`CC4A_OUT_DIR` at a shared drive in `.Renviron` if run output should not live
+inside the clone.
 
 ## 3. Folder by folder
 
-### R/00_shared: things every step uses
+### R/00_shared
 
 | Script | What it is |
 |---|---|
-| `paths.R` | The folder layout in one place, plus every file the pipeline reads or writes, the year window (`YEAR_MIN`, `YEAR_MAX`) and the list of African country codes. Creates the output folders on first use. Sourced by every script. |
-| `utils.R` | Helpers shared by the steps: timestamped logging, command line flag parsing, one polite HTTP fetcher with retries, safe CSV reading and writing, and the one way to normalise a DOI or a title for comparison. |
-| `vocab_cache.R` | Remembers every mapping from a verbatim extract to a controlled value, so a rerun of step 6 makes the same choice and costs almost nothing. Each decision is keyed to a fingerprint of the option list it was taken from, so a vocabulary change retires the decisions it invalidates and leaves the rest alone. A person can correct a row and the correction survives. |
-| `install_packages.R` | Installs the packages the pipeline needs. Run once after cloning. |
+| `paths.R` | Every folder and every file the pipeline touches, named once. Also the publication window (`YEAR_MIN`, `YEAR_MAX`) and the list of African country codes, since both are scope decisions rather than code. Creates the output folders the first time it is sourced. Every other script begins by sourcing it. |
+| `utils.R` | The shared plumbing: timestamped logging, flag parsing, a single HTTP fetcher that carries the delay and the retry logic, CSV reading and writing that never guesses a column type, and one canonical way to normalise a DOI or a title before comparing it. |
+| `vocab_cache.R` | A memory of every mapping from a verbatim extract to a controlled value. Reruns of step 6 therefore reproduce themselves and cost almost nothing. Each entry is stamped with a fingerprint of the option list it was chosen from, so enlarging a vocabulary expires exactly the decisions it invalidates and leaves the others standing. Corrections made by hand in the cache file are respected. |
+| `install_packages.R` | Installs what the pipeline needs. Run once after cloning. |
 
-### R/01_search: finding candidate studies
-
-| Script | What it is |
-|---|---|
-| `openalex_search.R` | Builds the query set from `catalogues/keyword_list.R`, sends it to the OpenAlex works API with the Africa and year filters applied server side, pages through with a cursor, reconstructs the abstract from the inverted index, and writes one row per record with the query that found it. Resumable. `--block=` runs one outcome block, `--limit=` tests it, `--dry` prints the queries and the expected counts without fetching. |
-
-### R/02_dedup: one study, one row
+### R/01_search
 
 | Script | What it is |
 |---|---|
-| `dedup_results.R` | Exact DOI match first, then a fuzzy title match with `stringdist` for the records that carry no DOI. Comparison is blocked on publication year and first author, so it stays cheap on a large result set. When two rows are the same study the one with a DOI wins, then the one with an open access link, then the one with the longer abstract. `--threshold=` sets the title distance, `--report` writes the register and changes nothing else. |
+| `openalex_search.R` | Assembles queries from `catalogues/keyword_list.R`, sends them with the Africa and year filters applied server side, walks the results with a cursor, rebuilds each abstract from the inverted index OpenAlex returns, and records the query alongside every row. Picks up where it left off. `--block=` runs a single outcome block, `--limit=` keeps a trial small, `--dry` shows the queries and their expected yield without fetching. |
 
-### R/03_screen: is this study in scope?
-
-| Script | What it is |
-|---|---|
-| `screen_scope.R` | The screener. Reads the title and the abstract and returns a verdict (in, out, unsure), the reason, the criterion that failed, the quote showing a cost or an adoption rate, the quote naming the country, a guess at the practice and a confidence. Resumable. `--limit=` tests it, `--shard=k/n` splits it for parallel runs, `--reask=` judges a named list again, `--dry` prices the run. |
-| `screen_rules.R` | Code checks on the verdicts. The year window and the Africa check are applied here from the record metadata, not by the model, so widening the review is a two number change in `paths.R` and a rerun with no abstract read again. A verdict of in with no number in the quote becomes unsure; low confidence becomes unsure; a one word reason is listed for a re ask. A person's decisions in `catalogues/screen_overrides.csv` win over everything. Writes the queue for a person. |
-
-### R/04_fetch: getting the full text
+### R/02_dedup
 
 | Script | What it is |
 |---|---|
-| `fetch_fulltext.R` | Tries the open access location Unpaywall gives for the DOI, then the open access URL the search already carries, then the DOI itself, then the publisher page. Every downloaded file is checked: the magic bytes say PDF, `pdftools` can open it, it holds more than a few hundred characters of text, and it has at least two pages. A login wall saved as a PDF fails those checks. Records with no free copy are listed with a reason, and `paywalled` is written only after every route has failed. `--retry` tries the failures again, `--dry` lists what would be fetched and from where. |
+| `dedup_results.R` | DOIs first, then a Jaro-Winkler comparison of titles for rows with no DOI or a disagreeing one. Comparison is blocked by year and first author, which keeps it affordable on a large set. Where two rows describe one study the survivor is chosen by rule: a DOI beats no DOI, an open access link beats none, a longer abstract beats a shorter one. `--threshold=` moves the title distance, `--report` writes the register without touching anything else. |
 
-### R/05_extract: the paper's own words
-
-| Script | What it is |
-|---|---|
-| `extract_verbatim.R` | Reads one full text. For each parameter family (cost, adoption, carbon share) it sends the page tagged document and asks for the number, the unit as written, the page and the sentence. Code then string matches every quote against the cited page: found, found on another page, or not found. A value that is not found is dropped and kept only in the audit. A list of things that can never fill a parameter slot (a project budget total, an exchange rate, a yield figure) is applied in code, not by the model. The untouched model answer is written per record, so a bad run can be diagnosed without paying for it again. |
-| `run_corpus.R` | The resumable driver over the corpus. Takes only the records the screening judged in scope and the fetch step found a readable text for. `--dry` plans and prices the run from the real page sizes, `--practice=` narrows it, `--limit=` tests it, `--redo` extracts again. One bad PDF is caught and logged, never allowed to stop the run. |
-
-How a long paper is handled: the document text is sent once and the per call
-instructions come after it, so the shared prefix is cached by the provider
-and the calls for one paper cost little more than one. Put an instruction
-before the document and the bill roughly doubles.
-
-### R/06_harmonise: the schema's words
+### R/03_screen
 
 | Script | What it is |
 |---|---|
-| `harmonize.R` | Sees only the verified extracts, never the papers. Maps practice, unit, geography and study design to the controlled values, using the vocabulary definitions. Rules first (exact match on the synonym lists), the decision cache second, one batched model call for what is left. Units are standardised here: local currency converted at the study year rate and deflated to the base year, person-days left alone because a labour quantity is not a price. When no controlled value fits, the answer is NOT STATED and the cell stays empty; the term is proposed for the team, never written into the data. |
+| `screen_scope.R` | The abstract level decision. Returns a verdict of in, out or unsure, a reason, the criterion that failed, the phrase evidencing a cost or adoption figure, the phrase naming the country, a guess at the practice, and a confidence. Picks up where it left off. `--limit=` for a trial, `--shard=k/n` to run in parallel, `--reask=` to revisit a named list, `--dry` to price it first. |
+| `screen_rules.R` | The audit over those verdicts. Publication year and the Africa check are settled here from the record metadata rather than by the model, which is what makes the window cheap to move: two numbers in `paths.R` and a rerun, with no abstract read twice. A verdict of in whose quoted phrase contains no digit drops to unsure, as does anything the model marked low confidence, and a one word reason goes on the list to be asked again. Entries in `catalogues/screen_overrides.csv` override both the model and the rules. Writes the manual review queue. |
 
-### R/07_publish: outputs for people
+### R/04_fetch
 
 | Script | What it is |
 |---|---|
-| `export_results.R` | Publishes the newest harmonised run as the Excel parameter database in the schema's column order, with a provenance sheet (page, quote, table reference, the original value and unit, the conversion applied) and a sheet of rows that need a human look. Also scores the run field by field against the gold set, so every release carries its own quality number. |
-| `cost_report.R` | What the pipeline has cost in model calls and what the rest of the corpus would cost, from measured prompt sizes rather than estimates. `--forecast` prices the records not yet processed. Run it before a full extraction, not after. |
+| `fetch_fulltext.R` | Works down four routes per record: the open access location Unpaywall reports for the DOI, the open access URL the search already carried, the DOI itself, then the publisher's landing page. A download survives only if the magic bytes say PDF, `pdftools` can open it, it holds real text rather than scanned images, and it runs past a single page. A record is labelled paywalled only once all four routes have failed, never on the strength of one refusal. `--retry` revisits failures, `--dry` reports the plan. |
+
+### R/05_extract
+
+| Script | What it is |
+|---|---|
+| `extract_verbatim.R` | Handles one paper. The page tagged text goes out once, and each parameter family (cost, adoption, carbon share) is asked about after it, so the provider's cache carries the document and the several calls cost barely more than one. Answers come back with a page and a sentence attached, and code then hunts for that sentence: on the cited page, elsewhere in the paper, or nowhere. The last case is thrown out and survives only in the audit file. A list of figures that can never be a parameter (a programme budget, an exchange rate, a yield) is enforced in code. The untouched model response is saved per record, so a disappointing run can be diagnosed without being paid for twice. |
+| `run_corpus.R` | Drives the extractor across the corpus, taking only records that passed screening and yielded readable text. `--dry` measures real page sizes and prices the run before any of it is spent, `--practice=` narrows it, `--limit=` trials it, `--redo` forces a repeat. A broken PDF is caught and logged rather than allowed to end the run. |
+
+### R/06_harmonise
+
+| Script | What it is |
+|---|---|
+| `harmonize.R` | Works from the verified rows alone and never reopens a paper. Practice, unit, geography and study design are mapped onto their controlled values: the synonym lists settle most of it, the decision cache settles what it has seen before, and a single batched model call handles the remainder. Units are made comparable here, with local currency converted at the study year rate and deflated to the base year, and with person-days deliberately left as labour rather than priced. Where nothing fits, the row is marked NOT STATED, the cell is left empty, and the unmatched term goes on a list for the team instead of into the data. |
+
+### R/07_publish
+
+| Script | What it is |
+|---|---|
+| `export_results.R` | Writes the parameter database in schema order, a provenance sheet carrying page, sentence, table reference and the pre-conversion value and unit, and a third sheet of rows that deserve a human glance. Also scores the run field by field against the gold set, so no release goes out without a number attached to its own reliability. |
+| `cost_report.R` | What has been spent on model calls and what the remaining corpus would cost, computed from prompt sizes already observed rather than from guesses. `--forecast` prices what is left. Worth running before a full extraction rather than after one. |
 
 ### catalogues/
 
-Small reference tables the scripts read at run time. No analytical rule is
-written into a script.
+Reference tables, read at run time. No analytical rule is written into a
+script.
 
 | File | What it is |
 |---|---|
-| `keyword_list.R` | The search vocabulary. Four blocks: the practice terms grouped by practice code, and the cost, adoption and carbon outcome terms. The search crosses a practice group with an outcome block. |
-| `vocab_practices.csv` | The practice codes, their definitions, every spelling the literature uses, whether the practice can carry a carbon claim, and the boundary note saying which neighbouring code a borderline paper goes to. |
-| `vocab_units.csv` | The unit codes, what dimension each belongs to, what it is standardised to, and the conversion note. |
-| `vocab_decisions.csv` | Every harmonisation decision, reused on rerun. A person can correct a row and the correction survives. Written by step 6. |
-| `screen_overrides.csv` | A person's screening decisions. They win over the model and over the rules. |
+| `keyword_list.R` | The search vocabulary in four blocks: practice terms grouped by practice code, then cost, adoption and carbon terms. A query is one practice group against one outcome block. |
+| `vocab_practices.csv` | Practice codes with a definition, every spelling the literature uses, whether the practice can support a carbon claim, and a boundary note saying where a borderline paper should go instead. |
+| `vocab_units.csv` | Unit codes, the dimension each belongs to, what it standardises to, and how the conversion is meant to work. |
+| `vocab_decisions.csv` | The harmonisation cache, written by step 6 and reused by it. Corrections made by hand survive the next run. |
+| `screen_overrides.csv` | Screening decisions made by a person. They outrank everything else. |
 | `gold_set.csv` | Records extracted by hand, used to score the pipeline in step 7. |
-| `search_raw.csv` | The raw search result set. Git ignored, regenerated by step 1. |
+| `search_raw.csv` | The raw result set. Git ignored, rebuilt by step 1. |
 
 ### docs/
 
-`protocol.md`, the review protocol: the question, the scope criteria, the
-search, the screening, the extraction, the harmonisation, the quality check
-and the questions still open. `workflow_diagram.md` is the placeholder for
-the one page figure.
+`protocol.md` sets out the question, the scope criteria and the method for
+each stage, and closes with the questions still unsettled.
+`workflow_diagram.md` is where the one page figure will go.
 
 ### outputs/
 
-Ignored by git and safe to delete, because the scripts regenerate it. One
-folder per step, plus `review/` for the queues a person works from and
-`logs/` for the per run record of what was called and what it cost.
+Git ignored and disposable; the scripts rebuild it. One folder per step, plus
+`review/` for the queues people work from and `logs/` for the record of what
+each run called and what it cost.
 
 ### .claude/ and CLAUDE.md
 
-Working rules for AI coding sessions on this repo: the standing rules, the
-script anatomy, the known gotchas, and a walkthrough for adding a practice.
-Nobody needs them to run the pipeline.
+Notes for AI coding sessions on this repository: the standing rules, the
+anatomy every script follows, the traps worth knowing, and a walkthrough for
+adding a practice. Not needed to run anything.
 
 ## 4. The extraction schema
 
-These are the columns of the Excel parameter database. The one definition of
-the set is `SCHEMA_FIELDS` in `R/05_extract/extract_verbatim.R`, and the
-publication order is `SHEET_PARAMETERS` in `R/07_publish/export_results.R`.
+These are the columns of the Excel parameter database. The set is defined
+once, as `SCHEMA_FIELDS` in `R/05_extract/extract_verbatim.R`, and published
+in the order given by `SHEET_PARAMETERS` in
+`R/07_publish/export_results.R`.
 
 | Column | What goes in it | Controlled |
 |---|---|---|
 | `parameter` | `adoption_rate`, `cost_total`, `cost_installation`, `cost_variable`, `carbon_share` | yes, fixed list |
-| `definition` | Free text. What exactly is measured, in the paper's terms | no |
+| `definition` | Free text. What is being measured, in the paper's own terms | no |
 | `practice` | `agroforestry`, `conservation_agriculture`, `improved_fallows`, `biochar`, `cover_crops`, `drought_tolerant_varieties`, `water_harvesting`, `other` | yes, `vocab_practices.csv` |
-| `value` | The number as the paper gives it | no |
+| `value` | The number as the paper reports it | no |
 | `unit` | `%`, `USD/ha/yr`, `UGX/ha/yr`, `person-days/ha`, `person-days/ha/yr`, `other` | yes, `vocab_units.csv` |
 | `geography` | Country or sub-region within Africa | yes, ISO 3166-1 alpha-2 or a named region |
-| `literature_doi` | The paper's DOI. Filled from the record, never from the model | no |
-| `detail` | Methodology notes: sample size, discount rate, study context, currency and year | no |
+| `literature_doi` | The paper's DOI, taken from the record and never from the model | no |
+| `detail` | Sample size, discount rate, study context, currency and year | no |
 | `study_design` | `RCT`, `observational`, `DCE`, `meta-analysis`, `review`, `other` | yes, fixed list |
-| `sample_size` | Number of farmers, plots, or studies | no |
+| `sample_size` | Farmers, plots, or studies | no |
 
-Every published row also carries its provenance on the second sheet: the
-record id, the page, the quote, the table reference, the verification status,
-and the original value and unit before conversion. Any number in the database
-can be traced back to a sentence on a page without opening the pipeline.
+Alongside these, every published row carries its origin on the second sheet:
+record id, page, the sentence, a table reference where the figure came from
+one, the verification status, and the value and unit as they stood before
+conversion. Any number in the database can be walked back to a sentence on a
+page without opening the pipeline.
 
-Two rules about the schema that are easy to get wrong. A cost is comparable
-only once the currency, the study year and the area are all fixed, so all
-three are recorded as the paper gives them and the conversion happens in
-code. And person-days are a labour quantity, not a price: the pipeline never
-converts them to money, because the wage assumption belongs to the carbon
-model.
+Two things here are easy to get wrong. A cost means nothing until the
+currency, the study year and the area are all pinned down, so all three are
+captured as written and the arithmetic happens later in code. And person-days
+are a quantity of labour, not a price: the pipeline refuses to monetise them,
+because the wage assumption belongs to the financial model and not to this
+review.
 
 ## 5. Keywords and search strategy
 
-The search is a cross, not a single string. A record has to look like it is
-about a practice and like it carries a number.
+A query is a cross rather than a phrase. A record has to look like it is about
+a practice and like it contains a figure.
 
 ```
 practice term  AND  (cost term  OR  adoption term  OR  carbon term)
@@ -211,91 +206,91 @@ practice term  AND  (cost term  OR  adoption term  OR  carbon term)
                AND  publication year inside the window
 ```
 
-The four blocks live in `catalogues/keyword_list.R`.
+The blocks live in `catalogues/keyword_list.R`.
 
 | Block | What is in it |
 |---|---|
-| `KW_PRACTICE` | One group per practice code, with every spelling the literature uses: hyphenated, abbreviated, and the local names (`zai`, `tassa`, `FMNR`) |
-| `KW_COST` | Terms that promise a figure: establishment cost, cost per hectare, gross margin, net present value, person-day |
+| `KW_PRACTICE` | One group per practice code, carrying every spelling the literature uses: hyphenated, abbreviated, and local (`zai`, `tassa`, `FMNR`) |
+| `KW_COST` | Terms that imply a figure: establishment cost, cost per hectare, gross margin, net present value, person-day |
 | `KW_ADOPTION` | Adoption rate, uptake, dis-adoption, share of farmers, willingness to pay |
 | `KW_CARBON` | Carbon revenue, benefit sharing, payment for ecosystem services, voluntary carbon market |
 
-Three decisions worth knowing.
+Three choices are worth explaining.
 
-**Country is not a keyword.** OpenAlex filters on the country of the author's
-institution, server side, which is both faster and wider than matching
-country names in the text. It is also imperfect: a paper about Kenya written
-at a Dutch university carries NL. The screener catches those, which is why
-the geography criterion is judged from the abstract as well as from the
-metadata.
+**Countries are not keywords.** OpenAlex can filter on the country of the
+author's institution before anything is downloaded, which beats matching
+country names in text for both speed and recall. It is also wrong sometimes:
+fieldwork in Kenya written up in Wageningen is tagged NL. That is why
+geography is judged from the abstract as well as from the metadata.
 
-**Terms have to promise a number.** `cost per hectare` earns its place;
-`sustainability` does not. Test a new term on its own with `--dry` and look
-at the expected count before running it for real.
+**A keyword should imply a number.** `cost per hectare` earns its place;
+`sustainability` returns thousands of papers that discuss affordability
+without ever quantifying it. Trial a new term alone with `--dry` and look at
+the count before committing to it.
 
-**The year window is not applied at screening by the model.** It is applied
-in code by `screen_rules.R`, from the record's own publication year. Widening
-the review to earlier studies is a two number change in `paths.R` and a rerun
-of the rules, with no abstract read again.
+**The year window is not a question for the model.** It is applied afterwards
+by `screen_rules.R` from the record's own publication year, which is why
+extending the review backwards costs two edited numbers and a rerun rather
+than a fresh pass over every abstract.
 
-Every query is logged with the exact string sent, the filters, the date, the
-number returned and the number kept, so the search is reproducible and the
-protocol can report the funnel honestly.
+Each query is logged with the string sent, the filters, the date, and the
+counts returned and kept, so the search can be repeated and the protocol can
+report its funnel without reconstructing it from memory.
 
 ## 6. Setting up
 
-**R.** Version 4.4 or later. Install the packages once:
+**R.** Version 4.4 or later. Install dependencies once:
 
 ```
 Rscript R/00_shared/install_packages.R
 ```
 
-They are httr2, jsonlite, curl and fs for retrieval; pdftools for reading
+These are httr2, jsonlite, curl and fs for retrieval; pdftools for reading
 PDFs; dplyr, purrr, tibble, tidyr, stringr, readr and glue for data handling;
 stringdist for duplicate detection; openxlsx and readxl for Excel; ellmer for
-model calls; cli for console output; rprojroot for finding the repo root.
+model calls; cli for console output; rprojroot for locating the repository
+root.
 
 **Keys.** Copy `.Renviron.example` to `.Renviron` in your R home folder and
-fill it in. `.Renviron` is ignored by git. Find your R home folder with
-`Sys.getenv("HOME")`.
+fill it in. That file is git ignored. `Sys.getenv("HOME")` will tell you where
+it belongs.
 
 ```
 OPENAI_API_KEY=            # screening, extraction, harmonisation
-ANTHROPIC_API_KEY=         # alternative model provider
+ANTHROPIC_API_KEY=         # alternative provider
 UNPAYWALL_EMAIL=           # required on every Unpaywall request
-OPENALEX_EMAIL=            # optional, gets the faster polite pool
+OPENALEX_EMAIL=            # optional, buys the faster polite pool
 ```
 
-Optional: `SCREEN_MODEL`, `EXTRACT_MODEL` and `HARMONIZE_MODEL` override the
-model each step uses; `CC4A_OUT_DIR` sends run outputs somewhere other than
-`outputs/`.
+Optional: `SCREEN_MODEL`, `EXTRACT_MODEL` and `HARMONIZE_MODEL` swap the model
+a step uses, and `CC4A_OUT_DIR` moves run output out of the clone.
 
-**Folders.** Nothing needs configuring. `paths.R` finds the repo root from
-its own location and creates the output folders on first use.
+**Folders.** Nothing to configure. `paths.R` locates the root from its own
+position and builds the output folders when it is first sourced.
 
-**Windows note.** Downloaded files are saved as `<record_id>.pdf`, never
-under the publisher's filename, because some of those are long enough to pass
-the 260 character path limit.
+**On Windows.** Downloads are stored as `<record_id>.pdf` rather than under
+the publisher's filename, because some of those filenames are long enough to
+breach the 260 character path limit.
 
 ## 7. Running the pipeline
 
-From the repo root, one script per step. Every script's header says what it
-reads, what it writes and which flags it takes. Every step that calls a model
-has a `--dry` flag that plans and prices the run without calling anything.
+One script per step, run from the repository root. Each script's header states
+its inputs, its outputs and its flags. Every step that calls a model can be
+planned and priced first with `--dry`.
 
 ```
 # 1 search
-Rscript R/01_search/openalex_search.R --dry           # the queries and the counts
-Rscript R/01_search/openalex_search.R                 # the real run
+Rscript R/01_search/openalex_search.R --dry           # queries and expected counts
+Rscript R/01_search/openalex_search.R
 
 # 2 dedup
 Rscript R/02_dedup/dedup_results.R --report           # what would be merged
 Rscript R/02_dedup/dedup_results.R
 
 # 3 screen
-Rscript R/03_screen/screen_scope.R --dry              # price the screening
-Rscript R/03_screen/screen_scope.R                    # resumable
-Rscript R/03_screen/screen_rules.R                    # rules, overrides, unsure queue
+Rscript R/03_screen/screen_scope.R --dry              # price it first
+Rscript R/03_screen/screen_scope.R
+Rscript R/03_screen/screen_rules.R                    # audit, overrides, review queue
 
 # 4 fetch
 Rscript R/04_fetch/fetch_fulltext.R --dry
@@ -314,34 +309,33 @@ Rscript R/07_publish/export_results.R
 Rscript R/07_publish/cost_report.R
 ```
 
-A single paper can be extracted directly, which is the fastest way to see
-what the extractor does:
+One paper can be put through the extractor on its own, which is the quickest
+way to see what it actually does:
 
 ```
 Rscript R/05_extract/extract_verbatim.R outputs/04_fulltext/pdf/W2741809807.pdf
 ```
 
-Steps 1, 3, 4 and 5 are resumable: a record already done is skipped, and
-results are appended after every record, so a run stopped halfway continues
-where it left off.
+Steps 1, 3, 4 and 5 all remember what they have already done and append after
+every record, so an interrupted run continues rather than restarts.
 
 ## 8. Where things end up
 
 | What | Where |
 |---|---|
-| The raw search result set, one row per record per query | `catalogues/search_raw.csv` |
-| One row per query with the counts, for the protocol funnel | `outputs/01_search/search_log.csv` |
+| Raw search results, one row per record per query | `catalogues/search_raw.csv` |
+| Per query counts, for the protocol funnel | `outputs/01_search/search_log.csv` |
 | One row per study after deduplication | `outputs/02_dedup/records_deduped.csv` |
-| The copies taken out, with the reason each was dropped | `outputs/02_dedup/duplicate_register.csv` |
-| The screening: verdict, reason, quotes, beside the ruled verdict | `outputs/03_screen/screen_ruled.csv` |
-| The queue for a person | `outputs/review/screen_unsure.csv` |
-| A person's decisions, which win over the rules | `catalogues/screen_overrides.csv` |
-| The downloaded full texts and the index of where each came from | `outputs/04_fulltext/` |
-| The extracted rows and the page verification report | `outputs/05_extract/` |
-| The harmonised rows, with the original value and unit kept | `outputs/06_harmonise/extracted_harmonised.csv` |
-| Terms the vocabulary lacks, proposed for the team | `outputs/review/proposed_vocab_terms.csv` |
+| Rows merged away, with the reason each lost | `outputs/02_dedup/duplicate_register.csv` |
+| Screening: model verdict, reason, quotes, and the audited verdict beside it | `outputs/03_screen/screen_ruled.csv` |
+| The manual review queue | `outputs/review/screen_unsure.csv` |
+| Screening decisions made by a person, which outrank the rules | `catalogues/screen_overrides.csv` |
+| Downloaded full texts and a note of which route found each | `outputs/04_fulltext/` |
+| Extracted rows and the page verification audit | `outputs/05_extract/` |
+| Harmonised rows, with the original value and unit preserved | `outputs/06_harmonise/extracted_harmonised.csv` |
+| Terms the vocabulary could not absorb, proposed to the team | `outputs/review/proposed_vocab_terms.csv` |
 | The Excel parameter database | `outputs/07_publish/cc4a_parameters_latest.xlsx` |
-| The quality score against the gold set, and the cost of the run | `outputs/07_publish/` |
+| Quality score against the gold set, and what the run cost | `outputs/07_publish/` |
 
 ## 9. Where the work stands
 
@@ -355,68 +349,66 @@ As of 22 September 2026.
 | Units in the vocabulary | 10, plus `other` |
 | Records searched | 0 |
 | Records extracted | 0 |
-| Gold set records | 0, to be extracted by hand |
+| Gold set records | 0, still to be extracted by hand |
 
-Next: `R/01_search/openalex_search.R`.
+Next up: `R/01_search/openalex_search.R`.
 
-Questions the protocol still has to answer are listed at the end of
-`docs/protocol.md`. The two that matter most before the full run are how to
-treat a meta-analysis without counting the same study twice, and which
-deflator series to use for currency conversion.
+The unsettled questions are listed at the end of `docs/protocol.md`. Two of
+them block a full run rather than merely annoying: how to admit a
+meta-analysis without counting its component studies twice, and which
+deflator series to standardise currency against.
 
 ## 10. Growing the pipeline
 
-**A new practice.** Add a row to `catalogues/vocab_practices.csv` and a group
-of the same name to `KW_PRACTICE` in `catalogues/keyword_list.R`. Rerun step
-1, then steps 2 to 5 for the new records only, then step 6 in full and step
-7. Nothing already extracted is read again. The walkthrough is
+**A practice.** Add a row to `catalogues/vocab_practices.csv` and a matching
+group to `KW_PRACTICE` in `catalogues/keyword_list.R`. Rerun step 1, let steps
+2 to 5 pick up only the new records, then rerun step 6 in full and step 7.
+Nothing already extracted is read again. Walkthrough:
 `.claude/skills/add-practice/SKILL.md`.
 
-**A new search term.** Add it to the right block in `keyword_list.R` and
-rerun step 1. Everything downstream is keyed to the record, not to the query,
-so the new records simply join the pool.
+**A search term.** Add it to its block and rerun step 1. Downstream work is
+keyed to records rather than to queries, so anything new simply joins the
+pool.
 
-**A wider timeframe.** Change `YEAR_MIN` and `YEAR_MAX` in
-`R/00_shared/paths.R` and rerun `screen_rules.R`. No abstract is read again,
-because the model's verdict is stored separately from the year rule. Then
-rerun the fetch and the extraction drivers, which will pick up only the
-records the wider window let in.
+**A wider timeframe.** Edit `YEAR_MIN` and `YEAR_MAX` in
+`R/00_shared/paths.R`, rerun `screen_rules.R`, then rerun the fetch and
+extraction drivers, which will collect only what the wider window admitted.
+No abstract is judged twice, because the model's verdict is stored apart from
+the year rule.
 
-**A new unit.** Add a row to `catalogues/vocab_units.csv` with its dimension,
-what it standardises to, and the conversion note. Rerun step 6 only. The
-option list changed, so the decisions taken under the old list retire on
-their own.
+**A unit.** Add a row to `catalogues/vocab_units.csv` with its dimension, its
+target unit and its conversion note, then rerun step 6 alone. The option list
+has changed, so decisions taken under the old one expire by themselves.
 
-**A new schema field.** This is the expensive change: step 5 has to be rerun,
-because the evidence for the field was never asked for. Change
-`SCHEMA_FIELDS` and `SHEET_PARAMETERS` together, and tell the modellers
-before the column order moves.
+**A schema field.** The costly one. Step 5 has to run again, because nobody
+ever asked the papers for that evidence. Change `SCHEMA_FIELDS` and
+`SHEET_PARAMETERS` together, and warn the modellers before the column order
+shifts under them.
 
-**A different model or provider.** Set `SCREEN_MODEL`, `EXTRACT_MODEL` or
-`HARMONIZE_MODEL` in `.Renviron`. Price the change with `--dry` before
-running it, and score the result against the gold set before trusting it.
+**A different model.** Set `SCREEN_MODEL`, `EXTRACT_MODEL` or
+`HARMONIZE_MODEL` in `.Renviron`. Price the swap with `--dry`, and score it
+against the gold set before believing its output.
 
 ## 11. Conventions
 
-- Plain language in every document and every script header. Sentence case.
-  No em dashes.
-- Every script starts with a header saying what it does, what it reads, what
-  it writes and which flags it takes.
-- Every script finds the repo root from its own location with
+- Plain language in documents and script headers alike. Sentence case. No em
+  dashes.
+- Each script opens with a header stating what it does, what it reads, what it
+  writes and what flags it accepts.
+- Each script locates the repository root from its own position with
   `rprojroot::find_root(rprojroot::has_file("CC4A.Rproj"))` and then sources
   `R/00_shared/paths.R`. No script calls `setwd()`.
-- `paths.R` is the only file that knows a path. A new output file is added
-  there first.
-- No analytical rule is hardcoded in a script. Practices, units, keywords and
-  the year window are read from `catalogues/` and `paths.R` at run time.
-- Deterministic first, model second. Where a model is needed, batch the calls
-  and cache the answers.
-- Every extracted value carries a page number and is checked against that
-  page. A value that is not found is dropped, not kept.
-- The pipeline proposes, the team decides. New terms go to a review list,
-  never silently into the data. When nothing fits, the answer is NOT STATED
-  and the cell stays empty.
-- Nothing is lost. Duplicates are registered rather than deleted, and the
-  model's own verdict is kept beside the ruled one.
+- Only `paths.R` knows a path. New output files are declared there before they
+  are written anywhere.
+- Analytical rules live in `catalogues/` and in `paths.R`, never inside a
+  script.
+- Look it up before asking a model, and where a model is unavoidable, batch
+  the calls and keep the answers.
+- Every extracted value carries a page and is tested against it. What cannot
+  be found is dropped rather than kept on trust.
+- Ambiguity goes to a review list, not into the data. Where nothing fits, the
+  answer is NOT STATED and the cell stays empty.
+- Rejected rows are registered rather than deleted, and the model's own
+  verdict is always kept beside the audited one.
 - Commits follow the conventional style: `feat:`, `fix:`, `docs:`,
   `refactor:`.
