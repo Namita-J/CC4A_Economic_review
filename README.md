@@ -28,19 +28,19 @@ Contact: Namita Joshi, Alliance Bioversity International and CIAT
 
 ## Contents
 
-1. [What the pipeline does](#1-what-the-pipeline-does)
-2. [What is in this repo and what is not](#2-what-is-in-this-repo-and-what-is-not)
-3. [Folder by folder](#3-folder-by-folder)
+1. [The seven steps](#1-the-seven-steps)
+2. [What the repository carries](#2-what-the-repository-carries)
+3. [A tour of the scripts](#3-a-tour-of-the-scripts)
 4. [The extraction schema](#4-the-extraction-schema)
 5. [Keywords and search strategy](#5-keywords-and-search-strategy)
-6. [Setting up](#6-setting-up)
-7. [Running the pipeline](#7-running-the-pipeline)
-8. [Where things end up](#8-where-things-end-up)
-9. [Where the work stands](#9-where-the-work-stands)
-10. [Growing the pipeline](#10-growing-the-pipeline)
-11. [Conventions](#11-conventions)
+6. [Installation and keys](#6-installation-and-keys)
+7. [How to run it](#7-how-to-run-it)
+8. [Output map](#8-output-map)
+9. [Current state](#9-current-state)
+10. [Extending it](#10-extending-it)
+11. [House rules](#11-house-rules)
 
-## 1. What the pipeline does
+## 1. The seven steps
 
 | Step | Folder | What happens |
 |---|---|---|
@@ -55,7 +55,7 @@ Contact: Namita Joshi, Alliance Bioversity International and CIAT
 A diagram of this belongs in `docs/workflow_diagram.md`, which currently holds
 the same seven steps as a sketch.
 
-## 2. What is in this repo and what is not
+## 2. What the repository carries
 
 The repository carries scripts and the small tables those scripts read. It
 carries no papers, no run output and no credentials.
@@ -73,7 +73,7 @@ sit anywhere and no script has to change directory to work. Point
 `CC4A_OUT_DIR` at a shared drive in `.Renviron` if run output should not live
 inside the clone.
 
-## 3. Folder by folder
+## 3. A tour of the scripts
 
 ### R/00_shared
 
@@ -237,7 +237,7 @@ Each query is logged with the string sent, the filters, the date, and the
 counts returned and kept, so the search can be repeated and the protocol can
 report its funnel without reconstructing it from memory.
 
-## 6. Setting up
+## 6. Installation and keys
 
 **R.** Version 4.4 or later. Install dependencies once:
 
@@ -272,7 +272,7 @@ position and builds the output folders when it is first sourced.
 the publisher's filename, because some of those filenames are long enough to
 breach the 260 character path limit.
 
-## 7. Running the pipeline
+## 7. How to run it
 
 One script per step, run from the repository root. Each script's header states
 its inputs, its outputs and its flags. Every step that calls a model can be
@@ -319,7 +319,7 @@ Rscript R/05_extract/extract_verbatim.R outputs/04_fulltext/pdf/W2741809807.pdf
 Steps 1, 3, 4 and 5 all remember what they have already done and append after
 every record, so an interrupted run continues rather than restarts.
 
-## 8. Where things end up
+## 8. Output map
 
 | What | Where |
 |---|---|
@@ -337,7 +337,7 @@ every record, so an interrupted run continues rather than restarts.
 | The Excel parameter database | `outputs/07_publish/cc4a_parameters_latest.xlsx` |
 | Quality score against the gold set, and what the run cost | `outputs/07_publish/` |
 
-## 9. Where the work stands
+## 9. Current state
 
 As of 22 September 2026.
 
@@ -358,7 +358,7 @@ them block a full run rather than merely annoying: how to admit a
 meta-analysis without counting its component studies twice, and which
 deflator series to standardise currency against.
 
-## 10. Growing the pipeline
+## 10. Extending it
 
 **A practice.** Add a row to `catalogues/vocab_practices.csv` and a matching
 group to `KW_PRACTICE` in `catalogues/keyword_list.R`. Rerun step 1, let steps
@@ -389,7 +389,7 @@ shifts under them.
 `HARMONIZE_MODEL` in `.Renviron`. Price the swap with `--dry`, and score it
 against the gold set before believing its output.
 
-## 11. Conventions
+## 11. House rules
 
 - Plain language in documents and script headers alike. Sentence case. No em
   dashes.

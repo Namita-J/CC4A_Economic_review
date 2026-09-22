@@ -219,4 +219,4 @@ settle the rule in `docs/protocol.md` before the full run.
 - Every new analytical term is in `catalogues/`, not in a script.
 - The header block names every file the script reads and writes.
 - No key, no absolute local path and no PDF is in the diff.
-- The README's folder by folder section describes the new script.
+- The new script has an entry in the README's tour of the scripts.
